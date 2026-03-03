@@ -58,7 +58,6 @@ func resourceMSOSchemaTemplateAnpEpg() *schema.Resource {
 			"bd_name": &schema.Schema{
 				Type:         schema.TypeString,
 				Optional:     true,
-				ForceNew:     true,
 				ValidateFunc: validation.StringLenBetween(0, 1000),
 			},
 			"bd_schema_id": &schema.Schema{
@@ -74,7 +73,6 @@ func resourceMSOSchemaTemplateAnpEpg() *schema.Resource {
 			"vrf_name": &schema.Schema{
 				Type:         schema.TypeString,
 				Optional:     true,
-				ForceNew:     true,
 				ValidateFunc: validation.StringLenBetween(1, 1000),
 			},
 			"vrf_schema_id": &schema.Schema{
@@ -616,6 +614,11 @@ func resourceMSOSchemaTemplateAnpEpgUpdate(d *schema.ResourceData, m interface{}
 			if err != nil {
 				return err
 			}
+		} else {
+			err := addPatchPayloadToContainer(payloadCont, "remove", fmt.Sprintf("%s/vrfRef", updatePath), nil)
+			if err != nil {
+				return err
+			}
 		}
 	}
 
@@ -636,6 +639,11 @@ func resourceMSOSchemaTemplateAnpEpgUpdate(d *schema.ResourceData, m interface{}
 				"bdName":       bdName,
 			}
 			err := addPatchPayloadToContainer(payloadCont, "replace", fmt.Sprintf("%s/bdRef", updatePath), bdRef)
+			if err != nil {
+				return err
+			}
+		} else {
+			err := addPatchPayloadToContainer(payloadCont, "remove", fmt.Sprintf("%s/bdRef", updatePath), nil)
 			if err != nil {
 				return err
 			}
