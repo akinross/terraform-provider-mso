@@ -58,7 +58,7 @@ func resourceMSOSchemaTemplateAnpEpg() *schema.Resource {
 			"bd_name": &schema.Schema{
 				Type:         schema.TypeString,
 				Optional:     true,
-				ForceNew:     true,
+				Computed:     true,
 				ValidateFunc: validation.StringLenBetween(0, 1000),
 			},
 			"bd_schema_id": &schema.Schema{
@@ -74,7 +74,7 @@ func resourceMSOSchemaTemplateAnpEpg() *schema.Resource {
 			"vrf_name": &schema.Schema{
 				Type:         schema.TypeString,
 				Optional:     true,
-				ForceNew:     true,
+				Computed:     true,
 				ValidateFunc: validation.StringLenBetween(1, 1000),
 			},
 			"vrf_schema_id": &schema.Schema{
