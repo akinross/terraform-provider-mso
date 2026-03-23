@@ -91,9 +91,8 @@ func resourceMSOSchemaTemplateAnpEpg() *schema.Resource {
 				Computed: true,
 			},
 			"description": &schema.Schema{
-				Type:         schema.TypeString,
-				Optional:     true,
-				ValidateFunc: validation.StringLenBetween(1, 128),
+				Type:     schema.TypeString,
+				Optional: true,
 			},
 			"useg_epg": &schema.Schema{
 				Type:     schema.TypeBool,
