@@ -378,8 +378,8 @@ func resourceMSOSchemaTemplateVrfUpdate(d *schema.ResourceData, m interface{}) e
 	}
 
 	if d.HasChange("rendezvous_points") {
-		// Not changed any of the logic of rendezvous_points to keep construction as is
-		// The conditional and construction of rpConfig object could be change using literals and avoid append function
+		// Have not changed any of the logic of rendezvous_points to keep construction as is
+		// The conditional and construction of rpConfig object could be changed using literals and avoid append function
 		rendezvousPoints := make([]interface{}, 0, 1)
 		if val, ok := d.GetOk("rendezvous_points"); ok {
 			rp_list := val.(*schema.Set).List()
@@ -402,7 +402,7 @@ func resourceMSOSchemaTemplateVrfUpdate(d *schema.ResourceData, m interface{}) e
 
 		// This conditional matches NewSchemaTemplateVrf function in mso-go-client
 		// The nil case was previously not doing anything in the case that a rendezvous point was added
-		//. this is because computed on the schema attribute would set the value to some value thus it would never be able to be removed
+		// this is because computed on the schema attribute would set the value to some value thus it would never be able to be removed
 		if rendezvousPoints != nil {
 			err := addPatchPayloadToContainer(payloadCont, "replace", fmt.Sprintf("%s/rpConfigs", updatePath), rendezvousPoints)
 			if err != nil {
