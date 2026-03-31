@@ -104,7 +104,7 @@ func resourceMSOTemplateExtenalepg() *schema.Resource {
 				Optional: true,
 				// Computed:     true,
 				// Commented out computed to allow anp removal when not provided
-				// ANP is not exposed in UI anymore for a long tim so we should investigate deprecation
+				// ANP is not exposed in UI anymore for a long time so we should investigate deprecation
 				ValidateFunc: validation.StringLenBetween(0, 1000),
 			},
 			"anp_schema_id": &schema.Schema{
@@ -606,8 +606,8 @@ func resourceMSOTemplateExtenalepgUpdate(d *schema.ResourceData, m interface{}) 
 	vrfRefMap["vrfName"] = vrfName
 
 	if extEpgType == "cloud" {
-		// Intentially not changing any of the cloud specific code because we are not support cloud apic anymore
-		// It is not impacting code having the functionality still around untill there is more clarity on cloud cleanup
+		// Intentially we do not change any of the cloud specific code because we do not support cloud apic anymore
+		// It is not impacting code having the functionality still around until there is more clarity on cloud cleanup
 		// Moved a few variables that are cloud specific inside of the conditional to make clearer they are not used by on-premise
 		platform := msoClient.GetPlatform()
 
@@ -786,7 +786,8 @@ func resourceMSOTemplateExtenalepgUpdate(d *schema.ResourceData, m interface{}) 
 		}
 
 		if d.HasChange("vrf_schema_id") || d.HasChange("vrf_template_name") || d.HasChange("vrf_name") {
-			// VRF is a required attribute so on any change detection vrf related attributes set replace operation to patch payload
+			// Because VRF is a required a attribute the VRF will always be present
+			// Any change detection in VRF attributes will set "replace" as the static operation in the patch payload
 			err := addPatchPayloadToContainer(payloadCont, "replace", fmt.Sprintf("%s/vrfRef", updatePath), vrfRefMap)
 			if err != nil {
 				return err
@@ -828,8 +829,8 @@ func resourceMSOTemplateExtenalepgUpdate(d *schema.ResourceData, m interface{}) 
 		}
 
 		if d.HasChange("anp_schema_id") || d.HasChange("anp_template_name") || d.HasChange("anp_name") {
-			// ANP is not used in externalEPG, this might be some legacy config or wrong config since it is 6 year old code
-			// Decided to based on the old anp behaviour to execute a replace when anpRefMap is created and anp name has been provided
+			// ANP is not used in externalEPG, this might be some legacy config or day0 wrong config
+			// Decided based on the old anp behaviour to execute a replace when anpRefMap is created and anp name has been provided
 			// We should investigate removal of ANP from the resource
 			anpName := d.Get("anp_name").(string)
 			if anpName != "" {
