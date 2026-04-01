@@ -26,6 +26,12 @@ var msoFabricPolicyTemplateInterfaceSettingName = acctest.RandStringFromCharSet(
 var msoFabricPolicyTemplateL3DomainName = acctest.RandStringFromCharSet(10, acctest.CharSetAlpha)
 var msoFabricPolicyTemplateSyncEInterfacePolicyName = acctest.RandStringFromCharSet(10, acctest.CharSetAlpha)
 var msoFabricPolicyTemplateMacsecPolicyName = acctest.RandStringFromCharSet(10, acctest.CharSetAlpha)
+var msoSchemaTemplateFilterName = acctest.RandStringFromCharSet(10, acctest.CharSetAlpha)
+var msoSchemaTemplateContractName = acctest.RandStringFromCharSet(10, acctest.CharSetAlpha)
+var msoSchemaTemplateBdL3MulticastName = acctest.RandStringFromCharSet(10, acctest.CharSetAlpha)
+var msoSchemaTemplateVrfL3MulticastName = acctest.RandStringFromCharSet(10, acctest.CharSetAlpha)
+
+const msoSchemaTemplateAnpEpgSubnetIp = "10.0.0.1/24"
 
 func testSiteConfigAnsibleTest() string {
 	return fmt.Sprintf(`
@@ -200,4 +206,88 @@ resource "mso_fabric_policies_macsec_policy" "%[1]s" {
 	key_server_priority    = 8
 }
 `, msoFabricPolicyTemplateMacsecPolicyName, msoFabricPolicyTemplateName)
+}
+
+func testSchemaTemplateVrfL3MulticastConfig() string {
+	return fmt.Sprintf(`
+resource "mso_schema_template_vrf" "%[1]s" {
+	name             = "%[1]s"
+	display_name     = "%[1]s"
+	schema_id        = mso_schema.%[2]s.id
+	template         = "%[3]s"
+	layer3_multicast = true
+	preferred_group  = true
+}
+`, msoSchemaTemplateVrfL3MulticastName, msoSchemaName, msoSchemaTemplateName)
+}
+
+func testSchemaTemplateBdL3MulticastConfig() string {
+	return fmt.Sprintf(`
+resource "mso_schema_template_bd" "%[1]s" {
+	schema_id				= mso_schema.%[2]s.id
+	template_name			= "%[3]s"
+	name					= "%[1]s"
+	display_name			= "%[1]s"
+	layer2_unknown_unicast 	= "proxy"
+	vrf_name				= mso_schema_template_vrf.%[4]s.name
+	layer3_multicast		= true
+}
+`, msoSchemaTemplateBdL3MulticastName, msoSchemaName, msoSchemaTemplateName, msoSchemaTemplateVrfL3MulticastName)
+}
+
+func testSchemaTemplateFilterEntryConfig() string {
+	return fmt.Sprintf(`
+resource "mso_schema_template_filter_entry" "%[1]s" {
+	schema_id          = mso_schema.%[2]s.id
+	template_name      = "%[3]s"
+	name               = "%[1]s"
+	display_name       = "%[1]s"
+	entry_name         = "%[1]s_entry"
+	entry_display_name = "%[1]s_entry"
+}
+`, msoSchemaTemplateFilterName, msoSchemaName, msoSchemaTemplateName)
+}
+
+func testSchemaTemplateContractConfig() string {
+	return fmt.Sprintf(`
+resource "mso_schema_template_contract" "%[1]s" {
+	schema_id     = mso_schema.%[2]s.id
+	template_name = "%[3]s"
+	contract_name = "%[1]s"
+	display_name  = "%[1]s"
+	filter_type   = "bothWay"
+	scope         = "context"
+	filter_relationship {
+		filter_name = mso_schema_template_filter_entry.%[4]s.name
+		filter_type = "bothWay"
+	}
+}
+`, msoSchemaTemplateContractName, msoSchemaName, msoSchemaTemplateName, msoSchemaTemplateFilterName)
+}
+
+func testSchemaTemplateAnpEpgContractConfig() string {
+	return fmt.Sprintf(`
+resource "mso_schema_template_anp_epg_contract" "%[1]s_provider" {
+	schema_id         = mso_schema.%[2]s.id
+	template_name     = "%[3]s"
+	anp_name          = "%[4]s"
+	epg_name          = "%[5]s"
+	contract_name     = mso_schema_template_contract.%[1]s.contract_name
+	relationship_type = "provider"
+}
+`, msoSchemaTemplateContractName, msoSchemaName, msoSchemaTemplateName, msoSchemaTemplateAnpName, msoSchemaTemplateAnpEpgName)
+}
+
+func testSchemaTemplateAnpEpgSubnetConfig() string {
+	return fmt.Sprintf(`
+resource "mso_schema_template_anp_epg_subnet" "%[1]s_subnet" {
+	schema_id = mso_schema.%[2]s.id
+	template  = "%[3]s"
+	anp_name  = "%[4]s"
+	epg_name  = "%[5]s"
+	ip        = "%[6]s"
+	scope     = "private"
+	shared    = false
+}
+`, msoSchemaTemplateAnpEpgName, msoSchemaName, msoSchemaTemplateName, msoSchemaTemplateAnpName, msoSchemaTemplateAnpEpgName, msoSchemaTemplateAnpEpgSubnetIp)
 }
