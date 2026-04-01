@@ -9,6 +9,8 @@ description: |-
 MSO Provider
 ------------
 
+!> NDO 4.2.2 introduces changes to Schema IDs, which breaks existing Terraform state files. After upgrading, all managed resources must be re-imported into the state. Refer to the [4.2.2 release notes](https://www.cisco.com/c/en/us/td/docs/dcn/ndo/4x/release-notes/cisco-nexus-dashboard-orchestrator-release-notes-422.html#ChangesinBehavior) for behavioral changes.
+
 Cisco ACI Multi-Site Orchestrator (MSO) is responsible for provisioning, health monitoring, and managing the full lifecycle of Cisco ACI networking policies and tenant policies across Cisco ACI sites around the world. Terraform provider MSO is a Terraform plugin which will be used to manage the MSO Fabric Constructs on the Cisco MSO platform with leveraging advantages of Terraform. The provider needs to be configured with the proper credentials before it can be used.
 
 Authentication
