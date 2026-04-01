@@ -12,6 +12,7 @@ const msoTemplateSiteName2 = "ansible_test_2"
 var msoTenantName = acctest.RandStringFromCharSet(10, acctest.CharSetAlpha)
 var msoSchemaName = acctest.RandStringFromCharSet(10, acctest.CharSetAlpha)
 var msoSchemaTemplateName = acctest.RandStringFromCharSet(10, acctest.CharSetAlpha)
+var msoSchemaTemplateName2 = acctest.RandStringFromCharSet(10, acctest.CharSetAlpha)
 var msoSchemaTemplateAnpName = acctest.RandStringFromCharSet(10, acctest.CharSetAlpha)
 var msoSchemaTemplateAnpEpgName = acctest.RandStringFromCharSet(10, acctest.CharSetAlpha)
 var msoSchemaTemplateVrfName = acctest.RandStringFromCharSet(10, acctest.CharSetAlpha)
