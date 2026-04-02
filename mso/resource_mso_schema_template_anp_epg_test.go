@@ -10,6 +10,9 @@ import (
 	"github.com/hashicorp/terraform-plugin-sdk/terraform"
 )
 
+// msoSchemaTemplateAnpEpgSchemaId is set during the first test step's Check to capture the dynamic schema ID for use in the manual deletion PreConfig step.
+var msoSchemaTemplateAnpEpgSchemaId string
+
 func TestAccMSOSchemaTemplateAnpEpgResource(t *testing.T) {
 	resource.Test(t, resource.TestCase{
 		PreCheck:     func() { testAccPreCheck(t) },
@@ -25,6 +28,15 @@ func TestAccMSOSchemaTemplateAnpEpgResource(t *testing.T) {
 					resource.TestCheckResourceAttr("mso_schema_template_anp_epg."+msoSchemaTemplateAnpEpgName, "anp_name", msoSchemaTemplateAnpName),
 					resource.TestCheckResourceAttr("mso_schema_template_anp_epg."+msoSchemaTemplateAnpEpgName, "name", msoSchemaTemplateAnpEpgName),
 					resource.TestCheckResourceAttr("mso_schema_template_anp_epg."+msoSchemaTemplateAnpEpgName, "display_name", msoSchemaTemplateAnpEpgName),
+					// Capture the dynamic schema ID from state for use in the manual deletion PreConfig step
+					func(s *terraform.State) error {
+						rs, ok := s.RootModule().Resources["mso_schema_template_anp_epg."+msoSchemaTemplateAnpEpgName]
+						if !ok {
+							return fmt.Errorf("EPG resource not found in state")
+						}
+						msoSchemaTemplateAnpEpgSchemaId = rs.Primary.Attributes["schema_id"]
+						return nil
+					},
 					resource.TestCheckResourceAttr("mso_schema_template_anp_epg."+msoSchemaTemplateAnpEpgName, "description", ""),
 					resource.TestCheckResourceAttr("mso_schema_template_anp_epg."+msoSchemaTemplateAnpEpgName, "useg_epg", "false"),
 					resource.TestCheckResourceAttr("mso_schema_template_anp_epg."+msoSchemaTemplateAnpEpgName, "intersite_multicast_source", "false"),
@@ -109,6 +121,23 @@ func TestAccMSOSchemaTemplateAnpEpgResource(t *testing.T) {
 					return fmt.Sprintf("%s/templates/%s/anps/%s/epgs/%s", rs.Primary.Attributes["schema_id"], rs.Primary.Attributes["template_name"], rs.Primary.Attributes["anp_name"], rs.Primary.Attributes["name"]), nil
 				},
 				ImportStateVerify: true,
+			},
+			{
+				PreConfig: func() {
+					fmt.Println("Test: Recreate EPG after manual deletion from NDO")
+					msoClient := testAccProvider.Meta().(*client.Client)
+					epgRemovePatchPayload := models.GetRemovePatchPayload(fmt.Sprintf("/templates/%s/anps/%s/epgs/%s", msoSchemaTemplateName, msoSchemaTemplateAnpName, msoSchemaTemplateAnpEpgName))
+					_, err := msoClient.PatchbyID(fmt.Sprintf("api/v1/schemas/%s", msoSchemaTemplateAnpEpgSchemaId), epgRemovePatchPayload)
+					if err != nil {
+						t.Fatalf("Failed to manually delete EPG: %v", err)
+					}
+				},
+				Config: testAccMSOSchemaTemplateAnpEpgConfigWithBdAndVrf(),
+				Check: resource.ComposeAggregateTestCheckFunc(
+					resource.TestCheckResourceAttrSet("mso_schema_template_anp_epg."+msoSchemaTemplateAnpEpgName, "schema_id"),
+					resource.TestCheckResourceAttr("mso_schema_template_anp_epg."+msoSchemaTemplateAnpEpgName, "name", msoSchemaTemplateAnpEpgName),
+					resource.TestCheckResourceAttr("mso_schema_template_anp_epg."+msoSchemaTemplateAnpEpgName, "display_name", msoSchemaTemplateAnpEpgName+" updated"),
+				),
 			},
 			{
 				PreConfig: func() { fmt.Println("Test: Add contract and subnet children to EPG") },

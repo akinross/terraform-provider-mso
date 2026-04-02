@@ -506,7 +506,8 @@ func resourceMSOSchemaTemplateAnpEpgRead(d *schema.ResourceData, m interface{}) 
 
 	if err != nil {
 		d.SetId("")
-		return err
+		log.Printf("[DEBUG] %s: EPG not found, removing from state", d.Id())
+		return nil
 	}
 
 	log.Printf("[DEBUG] %s: Read finished successfully", d.Id())
