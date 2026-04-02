@@ -10,6 +10,9 @@ import (
 	"github.com/hashicorp/terraform-plugin-sdk/terraform"
 )
 
+// msoSchemaTemplateAnpSchemaId is set during the first test step's Check to capture the dynamic schema ID for use in the manual deletion PreConfig step.
+var msoSchemaTemplateAnpSchemaId string
+
 func TestAccMSOSchemaTemplateAnpResource(t *testing.T) {
 	resource.Test(t, resource.TestCase{
 		PreCheck:     func() { testAccPreCheck(t) },
@@ -24,6 +27,15 @@ func TestAccMSOSchemaTemplateAnpResource(t *testing.T) {
 					resource.TestCheckResourceAttr("mso_schema_template_anp."+msoSchemaTemplateAnpName, "template", msoSchemaTemplateName),
 					resource.TestCheckResourceAttr("mso_schema_template_anp."+msoSchemaTemplateAnpName, "name", msoSchemaTemplateAnpName),
 					resource.TestCheckResourceAttr("mso_schema_template_anp."+msoSchemaTemplateAnpName, "display_name", msoSchemaTemplateAnpName),
+					// Capture the dynamic schema ID from state for use in the manual deletion PreConfig step
+					func(s *terraform.State) error {
+						rs, ok := s.RootModule().Resources["mso_schema_template_anp."+msoSchemaTemplateAnpName]
+						if !ok {
+							return fmt.Errorf("ANP resource not found in state")
+						}
+						msoSchemaTemplateAnpSchemaId = rs.Primary.Attributes["schema_id"]
+						return nil
+					},
 					// The resource description does not exist because the schema is initialized without a value and set to null
 					resource.TestCheckNoResourceAttr("mso_schema_template_anp."+msoSchemaTemplateAnpName, "description"),
 				),
@@ -77,6 +89,23 @@ func TestAccMSOSchemaTemplateAnpResource(t *testing.T) {
 				ImportStateVerify: true,
 				// Description attribute is set to empty string on import but it is not provided in the config.
 				ImportStateVerifyIgnore: []string{"description"},
+			},
+			{
+				PreConfig: func() {
+					fmt.Println("Test: Recreate ANP after manual deletion from NDO")
+					msoClient := testAccProvider.Meta().(*client.Client)
+					anpRemovePatchPayload := models.GetRemovePatchPayload(fmt.Sprintf("/templates/%s/anps/%s", msoSchemaTemplateName, msoSchemaTemplateAnpName))
+					_, err := msoClient.PatchbyID(fmt.Sprintf("api/v1/schemas/%s", msoSchemaTemplateAnpSchemaId), anpRemovePatchPayload)
+					if err != nil {
+						t.Fatalf("Failed to manually delete ANP: %v", err)
+					}
+				},
+				Config: testAccMSOSchemaTemplateAnpConfigRemoveDescription(),
+				Check: resource.ComposeAggregateTestCheckFunc(
+					resource.TestCheckResourceAttrSet("mso_schema_template_anp."+msoSchemaTemplateAnpName, "schema_id"),
+					resource.TestCheckResourceAttr("mso_schema_template_anp."+msoSchemaTemplateAnpName, "name", msoSchemaTemplateAnpName),
+					resource.TestCheckResourceAttr("mso_schema_template_anp."+msoSchemaTemplateAnpName, "display_name", msoSchemaTemplateAnpName+" updated"),
+				),
 			},
 			{
 				PreConfig: func() { fmt.Println("Test: Add EPG child to ANP") },
