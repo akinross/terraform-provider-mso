@@ -17,6 +17,9 @@ import (
 	"github.com/hashicorp/terraform-plugin-sdk/terraform"
 )
 
+// msoTenantId is used to capture the tenant ID from the first test step for use in the manual delete/recreate step.
+var msoTenantId string
+
 func TestAccMSOTenantResource(t *testing.T) {
 	resource.Test(t, resource.TestCase{
 		PreCheck:     func() { testAccPreCheck(t) },
@@ -30,6 +33,15 @@ func TestAccMSOTenantResource(t *testing.T) {
 					resource.TestCheckResourceAttr("mso_tenant.tenant", "name", msoTenantName),
 					resource.TestCheckResourceAttr("mso_tenant.tenant", "display_name", msoTenantName),
 					resource.TestCheckResourceAttr("mso_tenant.tenant", "description", "Terraform test tenant"),
+					// Capture the tenant ID for the manual delete/recreate step.
+					func(s *terraform.State) error {
+						rs, ok := s.RootModule().Resources["mso_tenant.tenant"]
+						if !ok {
+							return fmt.Errorf("mso_tenant.tenant not found in state")
+						}
+						msoTenantId = rs.Primary.ID
+						return nil
+					},
 				),
 			},
 			{
@@ -89,6 +101,22 @@ func TestAccMSOTenantResource(t *testing.T) {
 				ImportStateVerify: true,
 				// orchestrator_only is client-side only (controls delete behavior) and is not returned by the API.
 				ImportStateVerifyIgnore: []string{"orchestrator_only"},
+			},
+			{
+				PreConfig: func() {
+					fmt.Println("Test: Verify recreation of manually deleted Tenant")
+					client := testAccProvider.Meta().(*client.Client)
+					err := client.DeletebyId("api/v1/tenants/" + msoTenantId)
+					if err != nil {
+						panic(fmt.Sprintf("Failed to delete tenant %s via API: %s", msoTenantId, err))
+					}
+				},
+				Config: testAccMSOTenantConfigCreate(),
+				Check: resource.ComposeAggregateTestCheckFunc(
+					resource.TestCheckResourceAttr("mso_tenant.tenant", "name", msoTenantName),
+					resource.TestCheckResourceAttr("mso_tenant.tenant", "display_name", msoTenantName),
+					resource.TestCheckResourceAttr("mso_tenant.tenant", "description", "Terraform test tenant"),
+				),
 			},
 		},
 	})
