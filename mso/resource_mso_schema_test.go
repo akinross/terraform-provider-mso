@@ -15,6 +15,9 @@ import (
 	"github.com/hashicorp/terraform-plugin-sdk/terraform"
 )
 
+// msoSchemaId is used to capture the schema ID from the first test step for use in the manual delete/recreate step.
+var msoSchemaId string
+
 func TestAccMSOSchemaResource(t *testing.T) {
 	resource.Test(t, resource.TestCase{
 		PreCheck:     func() { testAccPreCheck(t) },
@@ -34,6 +37,15 @@ func TestAccMSOSchemaResource(t *testing.T) {
 						"template_type": "aci_multi_site",
 						"description":   "",
 					}),
+					// Capture the schema ID for the manual delete/recreate step.
+					func(s *terraform.State) error {
+						rs, ok := s.RootModule().Resources["mso_schema."+msoSchemaName]
+						if !ok {
+							return fmt.Errorf("mso_schema.%s not found in state", msoSchemaName)
+						}
+						msoSchemaId = rs.Primary.ID
+						return nil
+					},
 				),
 			},
 			{
@@ -162,6 +174,21 @@ func TestAccMSOSchemaResource(t *testing.T) {
 				),
 			},
 			{
+				PreConfig: func() { fmt.Println("Test: Remove template children") },
+				Config:    testAccMSOSchemaConfigRemoveChildren(),
+				Check: resource.ComposeAggregateTestCheckFunc(
+					resource.TestCheckResourceAttr("mso_schema."+msoSchemaName, "name", msoSchemaName+" updated"),
+					resource.TestCheckResourceAttr("mso_schema."+msoSchemaName, "description", "Terraform test schema updated"),
+					resource.TestCheckResourceAttr("mso_schema."+msoSchemaName, "template.#", "1"),
+					CustomTestCheckTypeSetElemAttrs("mso_schema."+msoSchemaName, "template", map[string]string{
+						"name":          msoSchemaTemplateName,
+						"display_name":  msoSchemaTemplateName + " updated",
+						"template_type": "aci_multi_site",
+						"description":   "",
+					}),
+				),
+			},
+			{
 				PreConfig: func() { fmt.Println("Test: Add extra template") },
 				Config:    testAccMSOSchemaConfigAddExtraTemplate(),
 				Check: resource.ComposeAggregateTestCheckFunc(
@@ -222,6 +249,28 @@ func TestAccMSOSchemaResource(t *testing.T) {
 				ImportStateVerify: true,
 				// Deprecated attributes are set to empty on import and are not used in the config.
 				ImportStateVerifyIgnore: []string{"template_name", "tenant_id"},
+			},
+			{
+				PreConfig: func() {
+					fmt.Println("Test: Verify recreation of manually deleted Schema")
+					client := testAccProvider.Meta().(*client.Client)
+					err := client.DeletebyId("api/v1/schemas/" + msoSchemaId)
+					if err != nil {
+						panic(fmt.Sprintf("Failed to delete schema %s via API: %s", msoSchemaId, err))
+					}
+				},
+				Config: testAccMSOSchemaConfigCreate(),
+				Check: resource.ComposeAggregateTestCheckFunc(
+					resource.TestCheckResourceAttr("mso_schema."+msoSchemaName, "name", msoSchemaName),
+					resource.TestCheckResourceAttr("mso_schema."+msoSchemaName, "description", ""),
+					resource.TestCheckResourceAttr("mso_schema."+msoSchemaName, "template.#", "1"),
+					CustomTestCheckTypeSetElemAttrs("mso_schema."+msoSchemaName, "template", map[string]string{
+						"name":          msoSchemaTemplateName,
+						"display_name":  msoSchemaTemplateName,
+						"template_type": "aci_multi_site",
+						"description":   "",
+					}),
+				),
 			},
 		},
 	})
@@ -343,7 +392,7 @@ func testAccMSOSchemaConfigRemoveDescription() string {
 }
 
 func testAccMSOSchemaConfigWithChildren() string {
-	return testAccMSOSchemaConfigAddDescription() + testSchemaTemplateVrfConfig() + testSchemaTemplateBdConfig() + testSchemaTemplateAnpConfig() + testSchemaTemplateAnpEpgConfig()
+	return testAccMSOSchemaConfigAddDescription() + testSchemaTemplateVrfConfig() + testSchemaTemplateBdConfig() + testSchemaTemplateAnpConfigWithBdDependency() + testSchemaTemplateAnpEpgConfig()
 }
 
 func testAccMSOSchemaConfigWithChildrenUpdateDescription() string {
@@ -356,7 +405,37 @@ func testAccMSOSchemaConfigWithChildrenUpdateDescription() string {
 			display_name = "%[3]s updated"
 			tenant_id    = mso_tenant.%[4]s.id
 		}
-	}`, testAccMSOSchemaPrerequisiteConfig(), msoSchemaName, msoSchemaTemplateName, msoTenantName) + testSchemaTemplateVrfConfig() + testSchemaTemplateBdConfig() + testSchemaTemplateAnpConfig() + testSchemaTemplateAnpEpgConfig()
+	}`, testAccMSOSchemaPrerequisiteConfig(), msoSchemaName, msoSchemaTemplateName, msoTenantName) + testSchemaTemplateVrfConfig() + testSchemaTemplateBdConfig() + testSchemaTemplateAnpConfigWithBdDependency() + testSchemaTemplateAnpEpgConfig()
+}
+
+// testAccMSOSchemaConfigRemoveChildren returns the same schema config as testAccMSOSchemaConfigWithChildrenUpdateDescription
+// but without children. Keeping the schema unchanged avoids a concurrent PATCH to NDO during child deletion.
+func testAccMSOSchemaConfigRemoveChildren() string {
+	return fmt.Sprintf(`%[1]s
+	resource "mso_schema" "%[2]s" {
+		name        = "%[2]s updated"
+		description = "Terraform test schema updated"
+		template {
+			name         = "%[3]s"
+			display_name = "%[3]s updated"
+			tenant_id    = mso_tenant.%[4]s.id
+		}
+	}`, testAccMSOSchemaPrerequisiteConfig(), msoSchemaName, msoSchemaTemplateName, msoTenantName)
+}
+
+// testSchemaTemplateAnpConfigWithBdDependency creates ANP config with an explicit dependency on BD.
+// This serializes all child PATCH operations to the schema (EPG → ANP → BD → VRF) to prevent
+// concurrent PATCH requests to the same NDO schema endpoint causing "Err Missing Ref" errors.
+func testSchemaTemplateAnpConfigWithBdDependency() string {
+	return fmt.Sprintf(`
+resource "mso_schema_template_anp" "%[1]s" {
+	name         = "%[1]s"
+	display_name = "%[1]s"
+	schema_id    = mso_schema.%[2]s.id
+	template     = "%[3]s"
+	depends_on   = [mso_schema_template_bd.%[4]s]
+}
+`, msoSchemaTemplateAnpName, msoSchemaName, msoSchemaTemplateName, msoSchemaTemplateBdName)
 }
 
 // testAccCheckMSOSchemaDestroy verifies that the schema is deleted from MSO.
